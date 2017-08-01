@@ -24,6 +24,29 @@ def create_offsets_options():
         help='The name of the struct to dump member offsets for')
     return parser
 
+def dump_address_node(node, depth):
+    node_type = node.GetType()
+    node_type_str = node_type.GetName()
+    node_type_resolved_str = ''
+    if node_type.IsTypedefType():
+        node_type_str = node_type_str.replace('typedef ', '')
+        node_type_resolved_str = ' [{}]'.format(node_type.GetTypedefedType().GetName())
+
+    print '{}{} ({}{}): {}'.format(' ' * 4 * depth,
+            node.GetName(),
+            node_type_str, node_type_resolved_str,
+            node.GetAddress())
+
+def dump_address_tree(node, depth):
+    dump_address_node(node, depth)
+
+    num_children = node.GetNumChildren()
+    if num_children == 0:
+        pass
+    elif not node.GetType().IsArrayType():
+        for i in range(num_children):
+            child = node.GetChildAtIndex(i)
+            dump_address_tree(child, depth + 1)
 
 def the_offsets_command(debugger, command, result, dict):
     # Use the Shell Lexer to properly parse up command options just like a
@@ -32,7 +55,6 @@ def the_offsets_command(debugger, command, result, dict):
     parser = create_offsets_options()
     try:
         args = parser.parse_args(command_args)
-        print >>result, args
     except:
         # if you don't handle exceptions, passing an incorrect argument to the ArgumentParser will cause LLDB to exit
         # (courtesy of argparse dealing with argument errors by throwing SystemExit)
@@ -50,11 +72,7 @@ def the_offsets_command(debugger, command, result, dict):
         return "no frame here"
 
     struct_value = frame.FindVariable(args.struct_name)
-    print struct_value, type(struct_value)
-    for i in range(struct_value.GetNumChildren()):
-        child = struct_value.GetChildAtIndex(i)
-        child_addr = child.GetAddress()
-        print '{}: {}'.format(child.GetName(), child_addr)
+    dump_address_tree(struct_value, 0)
 
 def __lldb_init_module(debugger, dict):
     # This initializer is being run from LLDB in the embedded command interpreter
